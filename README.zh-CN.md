@@ -1,8 +1,8 @@
-# Codex Skill Manager
+# Skill Manager
 
 本地 Codex Skills 管理台。找到需要的 Skill，设置好记的名称，查看引用、依赖和待核对项。
 
-[English](README.md) · [版本发布](https://github.com/yanlin-zhou/codex-skill-manager/releases) · [反馈问题](https://github.com/yanlin-zhou/codex-skill-manager/issues)
+[English](README.md) · [版本发布](https://github.com/yanlin-zhou/skill-manager/releases) · [反馈问题](https://github.com/yanlin-zhou/skill-manager/issues)
 
 ![使用隔离演示数据的首页](docs/images/overview.png)
 
@@ -11,8 +11,8 @@
 需要 **Node.js 22 或更新版本**，无需安装依赖或构建。
 
 ```sh
-git clone https://github.com/yanlin-zhou/codex-skill-manager.git
-cd codex-skill-manager
+git clone https://github.com/yanlin-zhou/skill-manager.git
+cd skill-manager
 npm start
 ```
 

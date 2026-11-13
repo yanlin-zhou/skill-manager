@@ -7,8 +7,8 @@ Bug reports, small fixes and focused feature proposals are welcome.
 Use Node.js 22 or newer. No dependency install is required.
 
 ```sh
-git clone https://github.com/yanlin-zhou/codex-skill-manager.git
-cd codex-skill-manager
+git clone https://github.com/yanlin-zhou/skill-manager.git
+cd skill-manager
 npm run demo
 ```
 
@@ -20,7 +20,7 @@ The demo runs at <http://127.0.0.1:4318> using isolated sample Skills. Use `npm 
 2. Fork the repository and create a focused branch. Keep existing search, category, list and drawer patterns.
 3. Run `npm run check`, `npm test` and `bash -n start.command` on macOS or Linux. Use the demo for UI checks.
 4. Describe the user-visible change and how you verified it. Add relevant notes under **Unreleased** in `CHANGELOG.md`; maintainers choose the release version.
-5. Exclude local Skills, configuration, environment files and personal screenshots. Report security issues through [private vulnerability reporting](https://github.com/yanlin-zhou/codex-skill-manager/security/advisories/new).
+5. Exclude local Skills, configuration, environment files and personal screenshots. Report security issues through [private vulnerability reporting](https://github.com/yanlin-zhou/skill-manager/security/advisories/new).
 
 Tests use temporary directories and never clean them recursively. Do not introduce bulk file deletion or overwrite an existing Skill. Archive means hiding a row in this manager, not disabling a Codex Skill.
 

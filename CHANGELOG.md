@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-12
+
+### Changed
+
+- Renamed the public repository and package to `skill-manager`.
+- Updated README titles, clone instructions, CI badge, repository metadata, security reporting and release links to the new repository URL.
+
 ## [0.4.0] - 2026-11-12
 
 ### Added
@@ -77,5 +84,6 @@
 - 引用图、手动依赖、手动使用记录、社区发现及配置备份与恢复。
 - 极简本地管理界面及不覆盖已有文件的 Codex 短名入口。
 
-[Unreleased]: https://github.com/yanlin-zhou/codex-skill-manager/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/yanlin-zhou/codex-skill-manager/releases/tag/v0.4.0
+[Unreleased]: https://github.com/yanlin-zhou/skill-manager/compare/v0.4.1...HEAD
+[0.4.0]: https://github.com/yanlin-zhou/skill-manager/releases/tag/v0.4.0
+[0.4.1]: https://github.com/yanlin-zhou/skill-manager/releases/tag/v0.4.1

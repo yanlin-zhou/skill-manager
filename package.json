@@ -1,6 +1,6 @@
 {
-  "name": "thomas-skill-manager",
-  "version": "0.4.0",
+  "name": "skill-manager",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "description": "A local-first home for your Codex skills.",
@@ -18,10 +18,10 @@
   "author": "yanlin-zhou",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yanlin-zhou/codex-skill-manager.git"
+    "url": "git+https://github.com/yanlin-zhou/skill-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/yanlin-zhou/codex-skill-manager/issues"
+    "url": "https://github.com/yanlin-zhou/skill-manager/issues"
   },
-  "homepage": "https://github.com/yanlin-zhou/codex-skill-manager#readme"
+  "homepage": "https://github.com/yanlin-zhou/skill-manager#readme"
 }

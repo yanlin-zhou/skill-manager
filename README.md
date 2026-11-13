@@ -1,10 +1,10 @@
-# Codex Skill Manager
+# Skill Manager
 
-[![CI](https://github.com/yanlin-zhou/codex-skill-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/yanlin-zhou/codex-skill-manager/actions/workflows/ci.yml)
+[![CI](https://github.com/yanlin-zhou/skill-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/yanlin-zhou/skill-manager/actions/workflows/ci.yml)
 
 A local workspace for a growing Codex Skill library. Find the right Skill, give it a memorable name, and inspect its relationships.
 
-[简体中文](README.zh-CN.md) · [Releases](https://github.com/yanlin-zhou/codex-skill-manager/releases) · [Report an issue](https://github.com/yanlin-zhou/codex-skill-manager/issues)
+[简体中文](README.zh-CN.md) · [Releases](https://github.com/yanlin-zhou/skill-manager/releases) · [Report an issue](https://github.com/yanlin-zhou/skill-manager/issues)
 
 ![Skill Manager with synthetic demo data](docs/images/overview.png)
 
@@ -15,8 +15,8 @@ The current interface is Simplified Chinese.
 Requires **Node.js 22+**. No dependencies or build step.
 
 ```sh
-git clone https://github.com/yanlin-zhou/codex-skill-manager.git
-cd codex-skill-manager
+git clone https://github.com/yanlin-zhou/skill-manager.git
+cd skill-manager
 npm start
 ```
 

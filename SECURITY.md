@@ -4,7 +4,7 @@ Security fixes target the latest published release. This is an early-stage, sing
 
 ## Report a vulnerability
 
-Use [GitHub private vulnerability reporting](https://github.com/yanlin-zhou/codex-skill-manager/security/advisories/new). Include the affected version, minimal reproduction, expected boundary and impact. Use synthetic Skills rather than personal files. Do not publish credentials or private Skill contents in an issue.
+Use [GitHub private vulnerability reporting](https://github.com/yanlin-zhou/skill-manager/security/advisories/new). Include the affected version, minimal reproduction, expected boundary and impact. Use synthetic Skills rather than personal files. Do not publish credentials or private Skill contents in an issue.
 
 ## Local boundaries
 
