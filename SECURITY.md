@@ -11,6 +11,7 @@ Use [GitHub private vulnerability reporting](https://github.com/yanlin-zhou/skil
 - The server listens on `127.0.0.1` and accepts local Host headers only. It has no remote login or network-sharing mode.
 - Mutating API requests require the manager's request header; cross-origin requests are rejected.
 - Skill text is displayed as text. Alias installation creates a new entry and refuses to overwrite different content.
+- App selection and project paths control which local Skill directories are read. Cursor includes documented compatibility directories. App source settings stay local and are excluded from portable metadata exports.
 - Configuration and imports live in `.skill-manager/`. They may contain local paths and must not be committed or shared unredacted.
 - GitHub popularity is fetched only when requested. The app does not upload your catalog or read Codex chat logs.
 

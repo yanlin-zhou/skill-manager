@@ -1,6 +1,6 @@
 # Skill Manager
 
-本地 Codex Skills 管理台。找到需要的 Skill，设置好记的名称，查看引用、依赖和待核对项。
+Codex、Claude Code、Cursor 共用的本地 Skills 管理台。找到需要的 Skill，设置好记的名称，查看引用、依赖和待核对项。
 
 [English](README.md) · [版本发布](https://github.com/yanlin-zhou/skill-manager/releases) · [反馈问题](https://github.com/yanlin-zhou/skill-manager/issues)
 
@@ -16,7 +16,7 @@ cd skill-manager
 npm start
 ```
 
-在运行服务的同一台电脑打开 **http://127.0.0.1:4317**。另一台电脑上的 `127.0.0.1` 指向另一台电脑。
+在运行服务的同一台电脑打开 **http://127.0.0.1:4317**。首次选择要载入的 App，也可添加项目目录；之后在「管理 App」修改。另一台电脑上的 `127.0.0.1` 指向另一台电脑。
 
 macOS 可运行 `./start.command` 启动后台服务并打开页面；`./start.command --no-open` 仅启动。更新代码后，重启已有后台服务：
 
@@ -36,14 +36,18 @@ npm run demo
 
 ## 功能
 
-- 扫描 `~/.codex/skills`、`~/.agents/skills`、插件缓存及工作台导入目录。
-- 默认显示个人 Skills，明确切换全部、缓存或系统范围；搜索、分类及计数保持一致。
+![首次选择 App](docs/images/app-selection.png)
+
+- 按选择载入 Codex、Claude Code、Cursor 的本地 Skills，可添加项目目录；共享文件合并展示，并保留 App 归属。
+- 按 App 和来源筛选；搜索、分类、收藏、归档和计数使用同一范围。
 - 按名称、描述、短名和备注搜索；支持分类、收藏、卡片／列表、`⌘K`／`Ctrl+K` 快速查找。
 - 设置显示名称和短名；明确创建 Codex `$短名` 入口，不覆盖已有不同文件。
 - 查看文件引用、兼容入口和手动依赖；核对正文一致、同名来源、缺失引用及依赖版本记录变化。
 - 手动使用记录、配置备份与恢复、按需读取 GitHub 公开仓库热度。
 
 ## 数据与边界
+
+完整目录规则、调用方式和范围见 [App 来源说明](docs/app-sources.md)。Claude 云端、旧版 commands 和 Cursor rules 不在本次本地接入范围内。
 
 配置和导入文件保存在 `.skill-manager/`，默认排除在 Git 之外。目录不上传，也不读取 Codex 聊天记录。只有刷新公开仓库热度时会请求 GitHub。
 

@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-12
+
+### Added
+
+- First-launch App selection for Codex, Claude Code and Cursor, with persistent source settings and optional project directories.
+- A unified inventory with App filtering and badges. Shared physical files and symlinks retain all matching App memberships without duplicate rows.
+- App-aware quick search, category and inventory counts, and native `$name` / `/name` call displays where supported by local evidence.
+- App source settings API, directory documentation and a synthetic multi-App demo.
+
+### Changed
+
+- Source scans are cached by the selected Apps and projects. Disconnecting a source preserves its saved metadata for later reconnection.
+- Same-name checks respect App namespaces; unrelated Apps and plugin packages are not collapsed into one source.
+- App setup and narrow-screen library controls keep the existing minimal layout.
+
+### Notes
+
+- This integration covers local `SKILL.md` directories. It does not query cloud accounts, old command formats, Cursor rules, chat logs or runtime-bundled Skill menus.
+- Cursor includes its documented compatible Claude and Codex directories. App membership is directory evidence, not proof of runtime enablement.
+- Native alias installation remains explicitly Codex-only. Project calls require the matching project context.
+- Existing Codex metadata is retained. Machine-local source selections and project paths are omitted from portable metadata exports.
+
 ## [0.4.1] - 2026-11-12
 
 ### Changed
@@ -84,6 +106,7 @@
 - 引用图、手动依赖、手动使用记录、社区发现及配置备份与恢复。
 - 极简本地管理界面及不覆盖已有文件的 Codex 短名入口。
 
-[Unreleased]: https://github.com/yanlin-zhou/skill-manager/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/yanlin-zhou/skill-manager/compare/v0.5.0...HEAD
 [0.4.0]: https://github.com/yanlin-zhou/skill-manager/releases/tag/v0.4.0
 [0.4.1]: https://github.com/yanlin-zhou/skill-manager/releases/tag/v0.4.1
+[0.5.0]: https://github.com/yanlin-zhou/skill-manager/releases/tag/v0.5.0

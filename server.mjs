@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir, hostname } from 'node:os';
 import { scanSkills, buildCatalog, parseSkill, aliasMarkdown } from './lib/catalog.mjs';
 import { Store, ValidationError, validateMetadata } from './lib/store.mjs';
+import { appStatus, sourceSettings, validateSources } from './lib/apps.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const { version: APP_VERSION } = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
@@ -31,14 +32,26 @@ async function body(req) {
 export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manager'), scanOptions = {}, aliasRoot = path.join(homedir(), '.agents/skills') } = {}) {
   const store = new Store(dataDirectory);
   const library = path.join(dataDirectory, 'library');
-  let scan;
-  let scanning;
+  let cached;
+  const pending = new Map();
   let repositoryCache = null;
-  const refresh = async () => {
-    if (!scanning) scanning = scanSkills({ library, ...scanOptions }).then(result => (scan = result)).finally(() => { scanning = null; });
-    return scanning;
+  const getScan = async (config, force = false) => {
+    const settings = sourceSettings(config);
+    const key = JSON.stringify([settings.apps, settings.projects]);
+    if (!force && cached?.key === key) return cached.value;
+    if (!pending.has(key)) {
+      const job = scanSkills({ library, selectedApps: settings.apps, projects: settings.projects, ...scanOptions })
+        .then(value => { cached = { key, value }; return value; }).finally(() => pending.delete(key));
+      pending.set(key, job);
+    }
+    return pending.get(key);
   };
-  const catalog = async () => buildCatalog(scan || await refresh(), await store.read());
+  const refresh = async () => getScan(await store.read(), true);
+  const catalog = async () => {
+    const config = await store.read();
+    const [scan, apps] = await Promise.all([getScan(config), appStatus(config, scanOptions)]);
+    return { ...buildCatalog(scan, config), appSources: { ...apps, configured: Boolean(scanOptions.roots) || apps.configured } };
+  };
   await store.transaction(config => config);
 
   const server = createServer(async (req, res) => {
@@ -56,6 +69,16 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
       if (req.method === 'GET' && route === '/api/health') return json(200, { app: 'thomas-skill-manager', version: APP_VERSION, hostname: hostname() });
       if (req.method === 'GET' && route === '/api/catalog') return json(200, await catalog());
       if (req.method === 'POST' && route === '/api/rescan') { await body(req); await refresh(); return json(200, await catalog()); }
+      if (req.method === 'GET' && route === '/api/apps') return json(200, await appStatus(await store.read(), scanOptions));
+      if (req.method === 'PUT' && route === '/api/apps') {
+        const input = await body(req);
+        let settings;
+        try { settings = await validateSources(input, scanOptions.home); }
+        catch (error) { throw new ValidationError(error.message); }
+        await store.transaction(config => { config.appSources = settings; });
+        await refresh();
+        return json(200, await catalog());
+      }
 
       const aliasInstall = route.match(/^\/api\/skills\/([a-f0-9]{16})\/install-alias$/);
       if (req.method === 'POST' && aliasInstall) {
@@ -63,6 +86,7 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
         const data = await catalog();
         const skill = data.skills.find(s => s.id === aliasInstall[1]);
         if (!skill) throw new ValidationError('没有找到这个 Skill', 404);
+        if (!scanOptions.roots && !sourceSettings(await store.read()).apps.includes('codex')) throw new ValidationError('请先在 App 来源中选择 Codex');
         if (!skill.alias || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(skill.alias)) throw new ValidationError('请先保存有效的短名');
         const folder = path.join(aliasRoot, skill.alias);
         const destination = path.join(folder, 'SKILL.md');
@@ -99,7 +123,7 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
         if (req.method === 'GET') return json(200, { ...skill, content: await readFile(skill.path, 'utf8') });
         if (req.method === 'PATCH' && !detail[2]) {
           const input = await body(req);
-          await store.transaction(config => { config.skills[skill.id] = validateMetadata(skill.id, input, buildCatalog(scan, config), config); });
+          await store.transaction(async config => { config.skills[skill.id] = validateMetadata(skill.id, input, buildCatalog(await getScan(config), config), config); });
           return json(200, await catalog());
         }
       }
@@ -123,8 +147,8 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
         const input = await body(req);
         const name = typeof input.name === 'string' ? input.name.trim() : '';
         if (!name || name.length > 20) throw new ValidationError('分类名称需要 1–20 个字符');
-        await store.transaction(config => {
-          const data = buildCatalog(scan || { skills: [], locations: [], warnings: [] }, config);
+        await store.transaction(async config => {
+          const data = buildCatalog(await getScan(config), config);
           if (data.categories.some(c => c.name === name)) throw new ValidationError('这个分类已经存在');
           config.categories.push({ id: `custom-${randomUUID().slice(0, 8)}`, name, color: '#879c91', icon: 'folder' });
         });
@@ -139,7 +163,7 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
       }
 
       if (req.method === 'GET' && route === '/api/config/export') {
-        const { events, ...config } = await store.read();
+        const { events, appSources, ...config } = await store.read();
         config.skills = Object.fromEntries(Object.entries(config.skills).map(([id, metadata]) => { const { installedAlias, ...portable } = metadata; return [id, portable]; }));
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="skill-manager-config.json"' });
         return res.end(JSON.stringify(config, null, 2));
@@ -149,7 +173,8 @@ export async function createApp({ dataDirectory = path.join(ROOT, '.skill-manage
         if (input.version !== 1 || !input.skills || typeof input.skills !== 'object' || Array.isArray(input.skills) || !Array.isArray(input.categories || []) || (input.categories || []).length > 100) throw new ValidationError('请选择 Skill Manager 导出的配置文件');
         let imported = 0, skipped = 0;
         await catalog();
-        await store.transaction(config => {
+        await store.transaction(async config => {
+          const scan = await getScan(config);
           for (const category of input.categories || []) {
             if (!/^custom-[a-z0-9-]+$/.test(category.id) || typeof category.name !== 'string' || !category.name.trim() || category.name.length > 20) throw new ValidationError('导入文件包含无效分类');
             if (!config.categories.some(c => c.id === category.id || c.name === category.name)) config.categories.push({ id: category.id, name: category.name, color: '#879c91', icon: 'folder' });

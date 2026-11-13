@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/yanlin-zhou/skill-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/yanlin-zhou/skill-manager/actions/workflows/ci.yml)
 
-A local workspace for a growing Codex Skill library. Find the right Skill, give it a memorable name, and inspect its relationships.
+One local workspace for Codex, Claude Code and Cursor Skills. Find the right Skill, give it a memorable name, and inspect its relationships.
 
 [简体中文](README.zh-CN.md) · [Releases](https://github.com/yanlin-zhou/skill-manager/releases) · [Report an issue](https://github.com/yanlin-zhou/skill-manager/issues)
 
 ![Skill Manager with synthetic demo data](docs/images/overview.png)
 
-The current interface is Simplified Chinese.
+The current interface is Simplified Chinese. On first launch, select the Apps to load; add project directories if needed. See [App sources](docs/app-sources.md) for directory rules and limits.
 
 ## Quick start
 
@@ -40,8 +40,10 @@ Open **http://127.0.0.1:4318**. It generates isolated sample Skills and configur
 
 ## What it does
 
-- Scans `~/.codex/skills`, `~/.agents/skills`, Codex plugin caches and manager imports.
-- Defaults to personal Skills. Switch to all sources, plugin caches or system Skills; search and counts share the selected scope.
+![Choose local App sources](docs/images/app-selection.png)
+
+- Loads selected Codex, Claude Code and Cursor directories, optional projects, supported plugin caches and manager imports. Shared files are merged into one row with App badges.
+- Defaults to personal Skills. Filter by App and source scope; search and counts stay consistent.
 - Searches names, descriptions, notes and short names. Includes categories, favorites, grid/list views and `⌘K` / `Ctrl+K` quick search.
 - Sets display names and short names. Explicitly creates a `$short-name` entry without overwriting an existing different file.
 - Shows file references, compatibility aliases and manually recorded dependencies. Detects identical bodies, same-name sources, missing references and changed dependency version records.
@@ -49,7 +51,7 @@ Open **http://127.0.0.1:4318**. It generates isolated sample Skills and configur
 
 ## Data and limits
 
-Your catalog stays on your computer. Configuration and imports live in `.skill-manager/`, which is gitignored. The app does not upload your Skills or read Codex chat logs. It makes outbound requests only when you refresh public GitHub repository popularity.
+App selections, project paths and your catalog stay on your computer. Configuration and imports live in `.skill-manager/`, which is gitignored. The app does not upload your Skills or read Codex chat logs. It makes outbound requests only when you refresh public GitHub repository popularity.
 
 - Plugin cache presence does not prove a plugin is enabled.
 - A saved short name is not an installed entry; calls are offered only with matching local evidence from the latest scan. Rescan after changing files.

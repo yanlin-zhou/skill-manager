@@ -1,10 +1,10 @@
 import { icon } from './icons.js';
-import { SOURCE_SCOPES, readScope, saveScope, filterSkills, scopeCounts, invocationState, aliasStatusLabel, localVersion, healthReviewCount } from './skill-state.js';
+import { APP_NAMES, skillApps, SOURCE_SCOPES, readScope, saveScope, filterSkills, scopeCounts, invocationState, aliasStatusLabel, localVersion, healthReviewCount } from './skill-state.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const app = $('#app'), drawer = $('#drawer'), modal = $('#modal');
-const state = { data: null, page: 'library', category: 'all', filter: 'all', source: readScope(localStorage), query: '', sort: 'smart', view: localStorage.getItem('skill-view') || 'grid', pageNumber: 1, drawerId: null, drawerTab: 'overview', graphId: null, graphZoom: 1, usageFilter: 'all', repositories: [], mobileNav: false };
+const state = { data: null, page: 'library', category: 'all', filter: 'all', source: readScope(localStorage), appFilter: localStorage.getItem('skill-app') || 'all', query: '', sort: 'smart', view: localStorage.getItem('skill-view') || 'grid', pageNumber: 1, drawerId: null, drawerTab: 'overview', graphId: null, graphZoom: 1, usageFilter: 'all', repositories: [], mobileNav: false };
 const pageNames = { library: '我的技能', health: '整理建议', dependencies: '依赖关系', usage: '使用记录', discover: '发现 Skills', settings: '设置' };
 const title = skill => skill.displayName || skill.heading || skill.name;
 const summary = skill => skill.description || '暂无描述';
@@ -15,11 +15,15 @@ const shortDate = value => value ? new Date(value).toLocaleDateString('zh-CN', {
 const btn = (action, text, iconName, cls = 'button', data = '') => `<button type="button" class="${cls}" data-action="${action}" ${data}>${iconName ? icon(iconName) : ''}${text}</button>`;
 const skillMark = (skill, size = '') => { const category = categoryById(skill.category); return `<span class="skill-mark ${size}" style="--category:${category.color}">${icon(category.icon)}</span>`; };
 const pill = category => `<span class="category-pill" style="--category:${category.color}"><i></i>${escape(category.name)}</span>`;
-const sourceLabel = skill => ({ personal: '本地 Skill', plugin: skill.plugin || '插件缓存', system: '系统 Skill', workspace: '工作台导入' }[skill.source]);
+const selectedApps = () => state.data.appSources?.apps || ['codex'];
+const appSummary = skill => skillApps(skill).map(id => APP_NAMES[id] || id).join(' / ') || '工作台';
+const sourceLabel = skill => `${appSummary(skill)} · ${{ personal: '本地 Skill', plugin: skill.plugin || '插件缓存', system: '系统 Skill', workspace: '导入文件' }[skill.source]}`;
+const canInstallCodex = () => selectedApps().includes('codex');
 function healthCount() { return healthReviewCount(state.data.health); }
 const searchTerms = skill => [title(skill), summary(skill), categoryById(skill.category).name];
-const selectedSourceLabel = () => SOURCE_SCOPES.find(([id]) => id === state.source)[1];
+const selectedSourceLabel = () => `${state.appFilter === 'all' ? '全部 App' : APP_NAMES[state.appFilter]} · ${SOURCE_SCOPES.find(([id]) => id === state.source)[1]}`;
 function selectSource(value) { state.source = saveScope(localStorage, value); state.pageNumber = 1; }
+function selectApp(value) { state.appFilter = selectedApps().includes(value) ? value : 'all'; try { localStorage.setItem('skill-app', state.appFilter); } catch {} state.pageNumber = 1; }
 async function api(route, options = {}) {
   const response = await fetch(route, { ...options, headers: { 'Content-Type': 'application/json', 'X-Skill-Manager': 'local', ...options.headers } });
   const data = await response.json();
@@ -49,10 +53,10 @@ async function updateSkill(id, patch) {
 function renderSidebar() {
   const data = state.data;
   const nav = [ ['library', 'grid'], ['health', 'sparkles'], ['dependencies', 'graph'], ['usage', 'chart'] ];
-  const counts = scopeCounts(data.skills, state.source);
+  const counts = scopeCounts(data.skills, state.source, state.appFilter);
   return `<aside class="sidebar ${state.mobileNav ? 'mobile-open' : ''}" aria-label="主导航">
     <a class="brand" href="#library"><span class="brand-mark"><img src="/favicon.svg" alt="" /></span><span>Skill Manager</span></a>
-    ${btn('mobile-nav', '', 'close', 'icon-button mobile-nav-close', 'aria-label="关闭导航"')}<button class="workspace-picker" data-action="settings"><span class="workspace-avatar">C</span><span>Codex<small>本地 Skills</small></span>${icon('down')}</button>
+    ${btn('mobile-nav', '', 'close', 'icon-button mobile-nav-close', 'aria-label="关闭导航"')}<button class="workspace-picker" data-action="apps-config" aria-label="管理 App 来源"><span class="workspace-avatar">S</span><span>${selectedApps().length === 1 ? APP_NAMES[selectedApps()[0]] : selectedApps().length ? "全部 App" : "选择 App"}<small>${selectedApps().map(id => APP_NAMES[id]).join("、") || "尚未选择来源"}</small></span>${icon('down')}</button>
     <nav class="primary-nav">${nav.map(([page, glyph]) => `<a href="#${page}" class="nav-item ${state.page === page && state.category === 'all' && state.filter !== 'favorite' && state.filter !== 'archived' ? 'active' : ''}" ${state.page === page ? 'aria-current="page"' : ''}>${icon(glyph)}<span>${pageNames[page]}</span>${page === 'library' ? `<span class="nav-count">${counts.active}</span>` : page === 'health' && healthCount() ? `<span class="nav-count attention">${healthCount()}</span>` : ''}</a>`).join('')}
     <a href="#discover" class="nav-item ${state.page === 'discover' ? 'active' : ''}">${icon('compass')}<span>发现 Skills</span>${icon('external', 'nav-external')}</a></nav>
     <div class="nav-section-label"><span>我的分类</span>${btn('add-category', '', 'plus', 'icon-button small', 'aria-label="新增分类"')}</div>
@@ -66,11 +70,24 @@ function renderSidebar() {
 
 function render() {
   if (!state.data) return;
+  if (state.appFilter !== 'all' && !selectedApps().includes(state.appFilter)) selectApp('all');
+  if (state.data.appSources?.configured === false) {
+    document.title = '选择 App · Skill Manager';
+    app.innerHTML = `<main class="setup-shell"><div class="brand setup-brand"><span class="brand-mark"><img src="/favicon.svg" alt="" /></span><span>Skill Manager</span></div><h1>选择 App</h1><p class="setup-caption">载入本机的 Skills</p>${renderAppForm()}</main>`;
+    return;
+  }
   app.innerHTML = `${renderSidebar()}${state.mobileNav ? btn('mobile-nav', '', null, 'mobile-nav-backdrop', 'aria-label="收起导航"') : ''}<div class="app-main"><header class="topbar">${btn('mobile-nav', '', 'menu', 'icon-button mobile-toggle', 'aria-label="展开导航" aria-expanded="' + state.mobileNav + '"')}<div class="topbar-actions"><button class="command-button" data-action="command" aria-label="快速查找 Skill">${icon('search')}<span>快速查找</span><kbd>⌘ K</kbd></button></div></header><main id="main" tabindex="-1">${renderPage()}</main></div>`;
   document.title = `${pageNames[state.page]} · Skill Manager`;
 }
 
 function pageHeading(name, actions = '') { return `<div class="page-heading"><h1>${name}</h1>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`; }
+function renderAppForm() {
+  const settings = state.data.appSources || { apps: ['codex'], projects: [], available: [] };
+  return `<form id="apps-form" class="apps-form"><fieldset class="app-options"><legend class="sr-only">选择要载入的 App</legend>${settings.available.map(item => {
+    const found = item.directories.filter(directory => directory.exists).length;
+    return `<label class="app-option"><span class="app-option-heading"><span class="app-letter" aria-hidden="true">${escape(item.initial)}</span><strong>${escape(item.name)}</strong><input type="checkbox" name="apps" value="${escape(item.id)}" ${settings.apps.includes(item.id) ? 'checked' : ''}/></span><code>${escape(item.directories[0]?.displayPath || '')}</code><small>${found ? `找到 ${found} 个目录` : '未找到全局目录'}${item.id === 'cursor' ? ' · 含兼容目录' : ''}</small></label>`;
+  }).join('')}</fieldset><details class="project-sources" ${settings.projects.length ? 'open' : ''}><summary>添加项目目录</summary><label class="form-field">项目目录<textarea name="projects" rows="3" maxlength="40000" placeholder="~/projects/my-app">${escape(settings.projects.join('\n'))}</textarea><small>每行一个项目目录</small></label></details><div class="form-error" role="alert"></div><button type="submit" class="button primary full-width">${icon('layers')}载入 Skills</button></form>`;
+}
 function renderPage() {
   switch (state.page) {
     case 'health': return renderHealth();
@@ -83,7 +100,7 @@ function renderPage() {
 }
 
 function filteredSkills() {
-  return filterSkills(state.data.skills, { scope: state.source, category: state.category, filter: state.filter, query: state.query, terms: searchTerms }).sort((a, b) => {
+  return filterSkills(state.data.skills, { scope: state.source, app: state.appFilter, category: state.category, filter: state.filter, query: state.query, terms: searchTerms }).sort((a, b) => {
     if (state.sort === 'name') return title(a).localeCompare(title(b), 'zh-CN');
     if (state.sort === 'updated') return b.modifiedAt.localeCompare(a.modifiedAt);
     if (state.sort === 'used') return b.usageCount - a.usageCount;
@@ -95,11 +112,11 @@ function filteredSkills() {
 function renderLibrary() {
   const selectedCategory = state.category !== 'all' ? categoryById(state.category) : null;
   const heading = state.filter === 'archived' ? '已归档' : selectedCategory?.name || '我的技能';
-  const tabCount = filter => filterSkills(state.data.skills, { scope: state.source, category: state.category, filter }).length;
-  return `${pageHeading(heading, `${btn('rescan', '扫描本地', 'refresh', 'button secondary')}${btn('add-skill', '导入 Skill', 'plus', 'button primary')}`)}
-    <div class="source-switch" role="group" aria-label="来源范围">${SOURCE_SCOPES.map(([id, label]) => `<button type="button" data-action="source-scope" data-id="${id}" aria-pressed="${state.source === id}" class="${state.source === id ? 'active' : ''}">${label}<span>${scopeCounts(state.data.skills, id).active}</span></button>`).join('')}</div>
+  const tabCount = filter => filterSkills(state.data.skills, { scope: state.source, app: state.appFilter, category: state.category, filter }).length;
+  return `${pageHeading(heading, `${btn('apps-config', '管理 App', 'layers', 'button secondary')}${btn('rescan', '扫描本地', 'refresh', 'button secondary')}${btn('add-skill', '导入 Skill', 'plus', 'button primary')}`)}
+    <div class="source-switch" role="group" aria-label="来源范围">${SOURCE_SCOPES.map(([id, label]) => `<button type="button" data-action="source-scope" data-id="${id}" aria-pressed="${state.source === id}" class="${state.source === id ? 'active' : ''}">${label}<span>${scopeCounts(state.data.skills, id, state.appFilter).active}</span></button>`).join('')}</div>
     <div class="library-tabs" role="group" aria-label="技能筛选">${[['all', '全部技能'], ['favorite', '我的收藏'], ['aliases', '快捷入口']].map(([id, label]) => `<button data-action="filter" data-id="${id}" class="tab ${state.filter === id ? 'active' : ''}" aria-pressed="${state.filter === id}">${id === 'favorite' ? icon('star') : ''}${label}<span>${tabCount(id)}</span></button>`).join('')}</div>
-    <div class="library-toolbar"><label class="search-field">${icon('search')}<input id="library-search" type="search" placeholder="搜索名称、短名或描述…" value="${escape(state.query)}" aria-label="搜索技能"/><kbd>/</kbd></label><div class="toolbar-selects"><label class="select-wrap sort-select"><span class="sr-only">排序方式</span><select id="sort-select">${[['smart', '默认排序'], ['name', '按名称排序'], ['updated', '文件修改时间'], ['used', '使用记录最多']].map(([v, l]) => `<option value="${v}" ${state.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>${icon('down')}</label><div class="view-toggle">${btn('view-grid', '', 'grid', state.view === 'grid' ? 'icon-button active' : 'icon-button', 'aria-label="卡片视图" aria-pressed="' + (state.view === 'grid') + '"')}${btn('view-list', '', 'list', state.view === 'list' ? 'icon-button active' : 'icon-button', 'aria-label="列表视图" aria-pressed="' + (state.view === 'list') + '"')}</div></div></div>
+    <div class="library-toolbar"><label class="search-field">${icon('search')}<input id="library-search" type="search" placeholder="搜索名称、短名或描述…" value="${escape(state.query)}" aria-label="搜索技能"/><kbd>/</kbd></label><div class="toolbar-selects"><label class="select-wrap app-filter"><span class="sr-only">App 筛选</span><select id="app-filter"><option value="all" ${state.appFilter === 'all' ? 'selected' : ''}>全部 App</option>${selectedApps().map(id => `<option value="${id}" ${state.appFilter === id ? 'selected' : ''}>${APP_NAMES[id]}</option>`).join('')}</select>${icon('down')}</label><label class="select-wrap sort-select"><span class="sr-only">排序方式</span><select id="sort-select">${[['smart', '默认排序'], ['name', '按名称排序'], ['updated', '文件修改时间'], ['used', '使用记录最多']].map(([v, l]) => `<option value="${v}" ${state.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>${icon('down')}</label><div class="view-toggle">${btn('view-grid', '', 'grid', state.view === 'grid' ? 'icon-button active' : 'icon-button', 'aria-label="卡片视图" aria-pressed="' + (state.view === 'grid') + '"')}${btn('view-list', '', 'list', state.view === 'list' ? 'icon-button active' : 'icon-button', 'aria-label="列表视图" aria-pressed="' + (state.view === 'list') + '"')}</div></div></div>
     <div id="library-results">${renderLibraryResults()}</div>`;
 }
 function renderLibraryResults() {
@@ -107,16 +124,16 @@ function renderLibraryResults() {
   const totalPages = Math.max(1, Math.ceil(results.length / 18));
   state.pageNumber = Math.min(state.pageNumber, totalPages);
   const visible = results.slice((state.pageNumber - 1) * 18, state.pageNumber * 18);
-  const recovery = `${state.source !== 'all' ? btn('source-scope', '查看全部来源', 'layers', 'button secondary', 'data-id="all"') : ''}${state.query || state.category !== 'all' || state.filter !== 'all' ? btn('reset-filter', '清除筛选', 'refresh', 'button secondary') : state.source === 'all' ? btn('rescan', '扫描本地', 'refresh', 'button secondary') : ''}`;
+  const recovery = `${btn('apps-config', '管理 App', 'layers', 'button secondary')}${state.source !== 'all' ? btn('source-scope', '查看全部来源', 'layers', 'button secondary', 'data-id="all"') : ''}${state.query || state.category !== 'all' || state.filter !== 'all' ? btn('reset-filter', '清除筛选', 'refresh', 'button secondary') : state.source === 'all' ? btn('rescan', '扫描本地', 'refresh', 'button secondary') : ''}`;
   return `<div class="results-caption"><span>${selectedSourceLabel()} · ${state.query ? `找到 ${results.length} 个 Skill` : `共 ${results.length} 个 Skill`}${state.category !== 'all' ? ` · ${escape(categoryById(state.category).name)}` : ''}</span>${state.filter === 'archived' ? '<span>仅在工作台隐藏</span>' : state.source === 'plugin' ? '<span>缓存不代表已启用</span>' : ''}</div>
-    ${!visible.length ? empty('search', state.query ? '没有找到这个 Skill' : state.filter === 'favorite' ? '暂无收藏' : state.filter === 'aliases' ? '暂无快捷入口' : '暂无 Skill', state.query ? '换个关键词试试。' : state.filter === 'favorite' ? '点击星标加入收藏。' : '', recovery) : `<div class="skills-${state.view}">${state.view === 'list' ? '<div class="list-header"><span>Skill</span><span>分类</span><span>快捷短名</span><span>来源</span><span></span></div>' : ''}${visible.map(renderSkill).join('')}</div>`}
+    ${!visible.length ? empty('search', state.query ? '没有找到这个 Skill' : state.filter === 'favorite' ? '暂无收藏' : state.filter === 'aliases' ? '暂无快捷入口' : !selectedApps().length ? '尚未选择 App' : '暂无 Skill', state.query ? '换个关键词试试。' : state.filter === 'favorite' ? '点击星标加入收藏。' : '', recovery) : `<div class="skills-${state.view}">${state.view === 'list' ? '<div class="list-header"><span>Skill</span><span>分类</span><span>快捷短名</span><span>来源</span><span></span></div>' : ''}${visible.map(renderSkill).join('')}</div>`}
     ${results.length ? `<div class="pagination"><span>显示 ${(state.pageNumber - 1) * 18 + 1}–${Math.min(state.pageNumber * 18, results.length)}，共 ${results.length} 个</span><div>${btn('prev-page', '上一页', null, 'button text-button', state.pageNumber === 1 ? 'disabled' : '')}<span>${state.pageNumber} / ${totalPages}</span>${btn('next-page', '下一页', null, 'button text-button', state.pageNumber === totalPages ? 'disabled' : '')}</div></div>` : ''}`;
 }
 function renderSkill(skill) {
   const category = categoryById(skill.category);
-  const tag = skill.alias ? `<span class="alias-chip">$${escape(skill.alias)}${!skill.aliasVerified ? `<small>${aliasStatusLabel(skill)}</small>` : ''}</span>` : `<span class="set-alias">${icon('plus')}设置短名</span>`;
+  const tag = skill.alias ? `<span class="alias-chip">${skill.aliasVerified ? '$' : ''}${escape(skill.alias)}${canInstallCodex() && !skill.aliasVerified ? `<small>Codex · ${aliasStatusLabel(skill)}</small>` : ''}</span>` : `<span class="set-alias">${icon('plus')}设置短名</span>`;
   if (state.view === 'list') return `<div class="skill-row"><button class="row-main" data-action="open-skill" data-id="${skill.id}">${skillMark(skill)}<span><strong>${escape(title(skill))}</strong><small>${escape(skill.name)}</small></span></button><span>${pill(category)}</span><button class="alias-button" data-action="edit-alias" data-id="${skill.id}">${tag}</button><span class="row-source">${escape(sourceLabel(skill))}</span>${btn('favorite', '', 'star', `icon-button favorite-button ${skill.favorite ? 'is-favorite' : ''}`, `data-id="${skill.id}" aria-label="${skill.favorite ? '取消收藏' : '收藏'} ${escape(title(skill))}"`)}</div>`;
-  return `<article class="skill-card ${skill.aliasTargetName ? 'compatibility-card' : ''}"><div class="card-top">${skillMark(skill)}<div class="card-top-actions">${skill.aliasTargetName ? '<span class="compatibility-label">兼容入口</span>' : ''}${btn('favorite', '', 'star', `icon-button favorite-button ${skill.favorite ? 'is-favorite' : ''}`, `data-id="${skill.id}" aria-label="${skill.favorite ? '取消收藏' : '收藏'} ${escape(title(skill))}" aria-pressed="${skill.favorite}"`)}</div></div><button class="card-content" data-action="open-skill" data-id="${skill.id}"><h3>${escape(title(skill))}</h3><div class="skill-original">${escape(skill.name)}</div><p>${escape(summary(skill))}</p></button><div class="card-tags">${pill(category)}<span class="source-mini">${skill.source === 'plugin' ? '插件缓存' : skill.source === 'system' ? '系统' : skill.source === 'workspace' ? '导入' : '本地'}</span></div><div class="card-footer"><button class="alias-button" data-action="edit-alias" data-id="${skill.id}">${tag}</button>${btn('open-skill', '', 'arrow', 'icon-button card-arrow', `data-id="${skill.id}" aria-label="查看 ${escape(title(skill))}"`)}</div></article>`;
+  return `<article class="skill-card ${skill.aliasTargetName ? 'compatibility-card' : ''}"><div class="card-top">${skillMark(skill)}<div class="card-top-actions">${skill.aliasTargetName ? '<span class="compatibility-label">兼容入口</span>' : ''}${btn('favorite', '', 'star', `icon-button favorite-button ${skill.favorite ? 'is-favorite' : ''}`, `data-id="${skill.id}" aria-label="${skill.favorite ? '取消收藏' : '收藏'} ${escape(title(skill))}" aria-pressed="${skill.favorite}"`)}</div></div><button class="card-content" data-action="open-skill" data-id="${skill.id}"><h3>${escape(title(skill))}</h3><div class="skill-original">${escape(skill.name)}</div><p>${escape(summary(skill))}</p></button><div class="card-tags">${pill(category)}<span class="source-mini">${escape(appSummary(skill))}${skill.source === 'plugin' ? ' · 缓存' : skill.source === 'system' ? ' · 系统' : skill.origins?.length && skill.origins.every(origin => origin.project) ? ' · 项目' : ''}</span></div><div class="card-footer"><button class="alias-button" data-action="edit-alias" data-id="${skill.id}">${tag}</button>${btn('open-skill', '', 'arrow', 'icon-button card-arrow', `data-id="${skill.id}" aria-label="查看 ${escape(title(skill))}"`)}</div></article>`;
 }
 function empty(glyph, heading, text, action = '') { return `<div class="empty-state"><span class="empty-icon">${icon(glyph)}</span><h3>${heading}</h3>${text ? `<p>${text}</p>` : ''}${action}</div>`; }
 
@@ -125,11 +142,11 @@ function renderHealth() {
   const issueCards = [];
   h.aliasGroups.filter(group => !group.target).forEach(group => issueCards.push(`<article class="review-card"><div class="review-card-heading"><span class="review-symbol amber">${icon('link')}</span><div><span class="overline">兼容目标待核对</span><h3>${escape(group.name)} · 未找到目标</h3></div></div><div class="review-skill-list">${group.members.map(id => skillChip(id, true)).join('')}</div>${btn('review-group', '查看入口', 'arrow', 'button secondary', `data-ids="${group.members.join(',')}"`)}</article>`));
   h.duplicates.forEach(ids => issueCards.push(`<article class="review-card"><div class="review-card-heading"><span class="review-symbol amber">${icon('copy')}</span><div><span class="overline">正文一致</span><h3>${ids.length} 份 Skill 的正文完全相同</h3></div></div><div class="review-skill-list">${ids.map(id => skillChip(id, true)).join('')}</div>${btn('review-group', '查看相关 Skills', 'arrow', 'button secondary', `data-ids="${ids.join(',')}"`)}</article>`));
-  h.nameCollisions.forEach(group => issueCards.push(`<article class="review-card compact"><div class="review-card-heading"><span class="review-symbol amber">${icon('alert')}</span><div><span class="overline">同名待核对</span><h3>${escape(group.name)} · ${group.members.length} 份</h3></div></div><div class="review-skill-list">${group.members.map(id => skillChip(id, true)).join('')}</div>${btn('review-group', '查看来源', 'arrow', 'button secondary', `data-ids="${group.members.join(',')}"`)}</article>`));
+  h.nameCollisions.forEach(group => issueCards.push(`<article class="review-card compact"><div class="review-card-heading"><span class="review-symbol amber">${icon('alert')}</span><div><span class="overline">同名待核对</span><h3>${escape(APP_NAMES[group.appId] || '')} · ${escape(group.name)} · ${group.members.length} 份</h3></div></div><div class="review-skill-list">${group.members.map(id => skillChip(id, true)).join('')}</div>${btn('review-group', '查看来源', 'arrow', 'button secondary', `data-ids="${group.members.join(',')}"`)}</article>`));
   h.missing.forEach(item => issueCards.push(`<article class="review-card"><div class="review-card-heading"><span class="review-symbol amber">${icon('link')}</span><div><span class="overline">引用待核对</span><h3>未在扫描范围内找到</h3></div></div><div class="missing-list"><div>${skillChip(item.from)}<code>${escape(item.path)}</code></div></div>${btn('open-dependencies', '查看引用', 'arrow', 'button secondary', `data-id="${item.from}"`)}</article>`));
   h.drift.forEach(edge => { const version = localVersion(skillById(edge.to)); issueCards.push(`<article class="review-card"><div class="review-card-heading"><span class="review-symbol amber">${icon('refresh')}</span><div><span class="overline">版本记录变化</span><h3>${escape(title(skillById(edge.from)))}</h3></div></div><div class="review-skill-list">${skillChip(edge.from)}${icon('arrow')}${skillChip(edge.to)}</div><p>${escape(version.label)}：${escape(edge.pinnedVersion)} → ${escape(version.value)}</p>${btn('focus-dependencies', '查看依赖版本', 'arrow', 'button secondary', `data-id="${edge.from}"`)}</article>`); });
   const compatible = h.aliasGroups.filter(group => group.target);
-  return `${pageHeading('整理建议', btn('rescan', '重新检查', 'refresh', 'button secondary'))}<p class="page-note">全库检查 · 含插件缓存</p><div class="section-heading"><h2>待核对 <span>${healthCount()}</span></h2></div><div class="review-grid">${issueCards.join('') || empty('checkcircle', '暂无待核对项', '')}</div>${compatible.length ? `<div class="section-heading spaced"><h2>兼容入口</h2><span>${compatible.length} 组</span></div><div class="review-grid">${compatible.map(group => `<article class="review-card"><div class="review-card-heading"><span class="review-symbol blue">${icon('link')}</span><div><h3>${escape(group.name)} · ${group.members.length} 个入口</h3></div></div><div class="review-skill-list">${group.members.map(id => skillChip(id)).join('')}<span class="relation-arrow">${icon('arrow')}</span>${skillChip(group.target)}</div><div class="review-actions"><span>SKILL.md 兼容声明</span>${btn('review-group', '查看入口', 'arrow', 'button secondary', `data-ids="${group.members.join(',')}"`)}</div></article>`).join('')}</div>` : ''}<div class="section-heading spaced"><h2>同类 Skills</h2><span>按个人分类分组</span></div><div class="scenario-grid">${h.candidates.map(group => { const category = categoryById(group.category); return `<article class="scenario-card"><span class="scenario-icon" style="color:${category.color}">${icon(category.icon)}</span><h3>${escape(category.name)}</h3><p>${group.members.length} 个 Skill</p><div class="scenario-names">${group.members.slice(0, 4).map(id => `<span>${escape(skillById(id).name)}</span>`).join('')}${group.members.length > 4 ? `<span>+${group.members.length - 4}</span>` : ''}</div>${btn('personal-category', '查看分类', 'arrow', 'button text-button', `data-id="${category.id}"`)}</article>`; }).join('')}</div>`;
+  return `${pageHeading('整理建议', btn('rescan', '重新检查', 'refresh', 'button secondary'))}<p class="page-note">检查已载入的 Skills · 含插件缓存</p><div class="section-heading"><h2>待核对 <span>${healthCount()}</span></h2></div><div class="review-grid">${issueCards.join('') || empty('checkcircle', '暂无待核对项', '')}</div>${compatible.length ? `<div class="section-heading spaced"><h2>兼容入口</h2><span>${compatible.length} 组</span></div><div class="review-grid">${compatible.map(group => `<article class="review-card"><div class="review-card-heading"><span class="review-symbol blue">${icon('link')}</span><div><h3>${escape(group.name)} · ${group.members.length} 个入口</h3></div></div><div class="review-skill-list">${group.members.map(id => skillChip(id)).join('')}<span class="relation-arrow">${icon('arrow')}</span>${skillChip(group.target)}</div><div class="review-actions"><span>SKILL.md 兼容声明</span>${btn('review-group', '查看入口', 'arrow', 'button secondary', `data-ids="${group.members.join(',')}"`)}</div></article>`).join('')}</div>` : ''}<div class="section-heading spaced"><h2>同类 Skills</h2><span>按个人分类分组</span></div><div class="scenario-grid">${h.candidates.map(group => { const category = categoryById(group.category); return `<article class="scenario-card"><span class="scenario-icon" style="color:${category.color}">${icon(category.icon)}</span><h3>${escape(category.name)}</h3><p>${group.members.length} 个 Skill</p><div class="scenario-names">${group.members.slice(0, 4).map(id => `<span>${escape(skillById(id).name)}</span>`).join('')}${group.members.length > 4 ? `<span>+${group.members.length - 4}</span>` : ''}</div>${btn('personal-category', '查看分类', 'arrow', 'button text-button', `data-id="${category.id}"`)}</article>`; }).join('')}</div>`;
 }
 function skillChip(id, withSource = false) { const skill = skillById(id); return skill ? `<button class="skill-chip" data-action="open-skill" data-id="${id}">${icon(categoryById(skill.category).icon)}${escape(title(skill))}${withSource ? `<small>${escape(sourceLabel(skill))}</small>` : ''}${skill.archived ? '<small>已归档</small>' : ''}</button>` : ''; }
 
@@ -178,7 +195,7 @@ function renderDiscover() {
 function renderSettings() {
   const personalRoots = state.data.locations.filter(l => l.kind !== 'plugin');
   const pluginCount = state.data.skills.filter(s => s.source === 'plugin').length;
-  return `${pageHeading('设置')}<section class="settings-section"><div><h2>扫描来源</h2></div><div class="settings-content">${personalRoots.map(root => `<div class="source-setting"><span class="source-setting-icon">${icon('folder')}</span><div><strong>${escape(root.label)}</strong><code>${escape(root.path)}</code></div><span class="badge neutral">${root.count} 个</span></div>`).join('')}<div class="source-setting"><span class="source-setting-icon">${icon('layers')}</span><div><strong>Codex 插件缓存</strong><p>缓存不代表已启用</p></div><span class="badge neutral">${pluginCount} 个</span></div>${btn('rescan', '重新扫描目录', 'refresh', 'button secondary')}<p class="footnote">上次扫描：${new Date(state.data.scannedAt).toLocaleString('zh-CN')}</p></div></section><section class="settings-section"><div><h2>配置与备份</h2></div><div class="settings-content"><div class="settings-inline"><div><strong>导出工作台配置</strong></div><a href="/api/config/export" class="button secondary" download>${icon('download')}导出配置</a></div><div class="settings-inline"><div><strong>恢复配置</strong></div>${btn('import-config', '导入配置', 'upload', 'button secondary')}</div></div></section><section class="settings-section"><div><h2>Codex 短名</h2></div><div class="settings-content"><p class="settings-explanation">保存短名 → 创建 Codex 入口 → 在新对话中使用 <code>$短名</code>。入口保存在 <code>~/.agents/skills/短名/SKILL.md</code>，不会覆盖已有文件。</p><a class="text-link" href="https://developers.openai.com/codex/skills/" target="_blank" rel="noopener noreferrer">查看 Codex Skills 文档 ${icon('external')}</a></div></section><section class="settings-section"><div><h2>数据</h2></div><div class="settings-content"><ul class="privacy-list"><li>${icon('check')}配置：.skill-manager</li><li>${icon('check')}源文件只读</li><li>${icon('check')}使用记录：手动</li><li>${icon('check')}外部请求：GitHub 公开仓库热度</li></ul></div></section>${state.data.warnings.length ? `<div class="notice-panel">${icon('alert')}<div><strong>部分路径读取失败</strong>${state.data.warnings.map(w => `<p>${escape(w)}</p>`).join('')}</div></div>` : ''}`;
+  return `${pageHeading('设置')}<section class="settings-section"><div><h2>App 来源</h2></div><div class="settings-content"><div class="settings-inline"><span>${selectedApps().map(id => escape(APP_NAMES[id])).join('、') || '尚未选择 App'}</span>${btn('apps-config', '管理 App', 'layers', 'button secondary')}</div>${state.data.appSources?.projects?.map(project => `<code class="file-path">${escape(project)}</code>`).join('') || ''}</div></section><section class="settings-section"><div><h2>扫描来源</h2></div><div class="settings-content">${personalRoots.map(root => `<div class="source-setting"><span class="source-setting-icon">${icon('folder')}</span><div><strong>${escape(root.label)}</strong><code>${escape(root.path)}</code></div><span class="badge neutral">${root.count} 个</span></div>`).join('')}<div class="source-setting"><span class="source-setting-icon">${icon('layers')}</span><div><strong>插件缓存</strong><p>缓存不代表已启用</p></div><span class="badge neutral">${pluginCount} 个</span></div>${btn('rescan', '重新扫描目录', 'refresh', 'button secondary')}<p class="footnote">上次扫描：${new Date(state.data.scannedAt).toLocaleString('zh-CN')}</p></div></section><section class="settings-section"><div><h2>配置与备份</h2></div><div class="settings-content"><div class="settings-inline"><div><strong>导出工作台配置</strong></div><a href="/api/config/export" class="button secondary" download>${icon('download')}导出配置</a></div><div class="settings-inline"><div><strong>恢复配置</strong></div>${btn('import-config', '导入配置', 'upload', 'button secondary')}</div></div></section><section class="settings-section"><div><h2>Codex 短名</h2></div><div class="settings-content"><p class="settings-explanation">保存短名 → 创建 Codex 入口 → 在新对话中使用 <code>$短名</code>。入口保存在 <code>~/.agents/skills/短名/SKILL.md</code>，不会覆盖已有文件。</p><a class="text-link" href="https://developers.openai.com/codex/skills/" target="_blank" rel="noopener noreferrer">查看 Codex Skills 文档 ${icon('external')}</a></div></section><section class="settings-section"><div><h2>数据</h2></div><div class="settings-content"><ul class="privacy-list"><li>${icon('check')}配置：.skill-manager</li><li>${icon('check')}源文件只读</li><li>${icon('check')}使用记录：手动</li><li>${icon('check')}外部请求：GitHub 公开仓库热度</li></ul></div></section>${state.data.warnings.length ? `<div class="notice-panel">${icon('alert')}<div><strong>部分路径读取失败</strong>${state.data.warnings.map(w => `<p>${escape(w)}</p>`).join('')}</div></div>` : ''}`;
 }
 
 async function openSkill(id, tab = 'overview') {
@@ -196,7 +213,8 @@ function renderDrawer(skill) {
 }
 function renderInvocation(skill) {
   const invocation = invocationState(skill, state.data.skills);
-  return `<section class="invocation-panel" aria-label="Codex 调用"><p class="invocation-status">${escape(invocation.status)}</p>${invocation.commands.map(command => `<div class="invocation-command"><code>${escape(command)}</code>${btn('copy-invocation', '复制调用', 'copy', 'button secondary', `data-id="${skill.id}" data-command="${escape(command)}" aria-label="复制调用 ${escape(command)}"`)}</div>`).join('')}<dl class="detail-info version-info"><div><dt>Skill 版本</dt><dd>${escape(skill.version || '未标版本')}</dd></div>${skill.pluginVersion ? `<div><dt>插件包版本</dt><dd>${escape(skill.pluginVersion)}</dd></div>` : ''}<div><dt>更新状态</dt><dd>未检查</dd></div></dl></section>`;
+  const calls = invocation.calls.filter(call => state.appFilter === 'all' || call.appId === state.appFilter);
+  return `<section class="invocation-panel" aria-label="调用入口"><p class="invocation-status">${escape(invocation.status)}</p>${calls.map(call => `<div class="invocation-command"><span class="invocation-app">${escape(call.appName)}</span><code>${escape(call.command)}</code>${btn('copy-invocation', '复制调用', 'copy', 'button secondary', `data-id="${skill.id}" data-app="${call.appId}" data-command="${escape(call.command)}" aria-label="复制 ${escape(call.appName)} 调用 ${escape(call.command)}"`)}</div>`).join('')}${skill.origins?.some(origin => origin.project) ? '<p class="footnote">项目 Skills 需在对应项目中使用。</p>' : ''}<dl class="detail-info version-info"><div><dt>Skill 版本</dt><dd>${escape(skill.version || '未标版本')}</dd></div>${skill.pluginVersion ? `<div><dt>插件包版本</dt><dd>${escape(skill.pluginVersion)}</dd></div>` : ''}<div><dt>更新状态</dt><dd>未检查</dd></div></dl></section>`;
 }
 function aliasInstallControl(skill) {
   if (skill.aliasVerified) return `<span class="badge blue">${icon('check')}入口已创建</span>`;
@@ -207,7 +225,7 @@ function aliasInstallControl(skill) {
   return btn('install-alias', skill.aliasEntryStatus === 'missing' ? '重新创建入口' : '创建 Codex 入口', 'plus', 'button secondary', `data-id="${skill.id}"`);
 }
 function drawerOverview(skill) {
-  return `<form id="skill-form" data-id="${skill.id}"><label class="form-field">显示名称<input name="displayName" maxlength="80" value="${escape(skill.displayName)}" placeholder="${escape(title(skill))}"/></label><label class="form-field">快捷短名<span class="alias-input"><span>$</span><input name="alias" maxlength="32" value="${escape(skill.alias)}" placeholder="例如 ui、write、cover" pattern="[a-z0-9][a-z0-9-]{0,31}"/></span><small>小写字母、数字、连字符，最多 32 位</small></label>${skill.alias ? `<div class="alias-export"><div><strong>$${escape(skill.alias)}</strong><p>${aliasStatusLabel(skill)}</p></div></div><div class="alias-install-row"><code>~/.agents/skills/${escape(skill.alias)}/SKILL.md</code>${aliasInstallControl(skill)}<a class="icon-button" href="/api/skills/${skill.id}/alias" download="SKILL.md" aria-label="下载短名 Skill">${icon('download')}</a></div>` : ''}<label class="form-field">所属分类<select name="category">${state.data.categories.map(c => `<option value="${c.id}" ${c.id === skill.category ? 'selected' : ''}>${escape(c.name)}</option>`).join('')}</select>${skill.categoryOrigin === 'inferred' ? '<small>自动分类</small>' : ''}</label><label class="form-field">备注<textarea name="notes" maxlength="3000" rows="3" placeholder="用途或注意事项">${escape(skill.notes)}</textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button primary full-width">${icon('check')}保存设置</button></form><div class="detail-section"><h3>来源信息</h3><dl class="detail-info"><div><dt>文件修改</dt><dd>${shortDate(skill.modifiedAt)}</dd></div><div><dt>使用记录</dt><dd>${skill.usageCount ? skill.usageCount + ' 次手动记录' : '尚无记录'}</dd></div></dl><code class="file-path">${escape(skill.path)}</code><div class="detail-actions">${btn('record-use', '记录一次使用', 'plus', 'button secondary', `data-id="${skill.id}"`)}${btn('archive-skill', skill.archived ? '放回技能库' : '归档', 'archive', 'button text-button', `data-id="${skill.id}"`)}</div><p class="footnote">归档不影响 Codex 调用。</p></div>`;
+  return `<form id="skill-form" data-id="${skill.id}"><label class="form-field">显示名称<input name="displayName" maxlength="80" value="${escape(skill.displayName)}" placeholder="${escape(title(skill))}"/></label><label class="form-field">查找短名<span class="alias-input"><input name="alias" maxlength="32" value="${escape(skill.alias)}" placeholder="例如 ui、write、cover" pattern="[a-z0-9][a-z0-9-]{0,31}"/></span><small>小写字母、数字、连字符，最多 32 位</small></label>${skill.alias ? `<div class="alias-export"><div><strong>${escape(skill.alias)}</strong><p>${canInstallCodex() ? "Codex · " + aliasStatusLabel(skill) : "查找短名"}</p></div></div>${canInstallCodex() ? `<div class="alias-install-row"><code>~/.agents/skills/${escape(skill.alias)}/SKILL.md</code>${aliasInstallControl(skill)}<a class="icon-button" href="/api/skills/${skill.id}/alias" download="SKILL.md" aria-label="下载短名 Skill">${icon('download')}</a></div>` : ''}` : ''}<label class="form-field">所属分类<select name="category">${state.data.categories.map(c => `<option value="${c.id}" ${c.id === skill.category ? 'selected' : ''}>${escape(c.name)}</option>`).join('')}</select>${skill.categoryOrigin === 'inferred' ? '<small>自动分类</small>' : ''}</label><label class="form-field">备注<textarea name="notes" maxlength="3000" rows="3" placeholder="用途或注意事项">${escape(skill.notes)}</textarea></label><div class="form-error" role="alert"></div><button type="submit" class="button primary full-width">${icon('check')}保存设置</button></form><div class="detail-section"><h3>来源信息</h3><dl class="detail-info"><div><dt>文件修改</dt><dd>${shortDate(skill.modifiedAt)}</dd></div><div><dt>使用记录</dt><dd>${skill.usageCount ? skill.usageCount + ' 次手动记录' : '尚无记录'}</dd></div></dl><code class="file-path">${escape(skill.path)}</code><div class="detail-actions">${btn('record-use', '记录一次使用', 'plus', 'button secondary', `data-id="${skill.id}"`)}${btn('archive-skill', skill.archived ? '放回技能库' : '归档', 'archive', 'button text-button', `data-id="${skill.id}"`)}</div><p class="footnote">归档不影响源 App。</p></div>`;
 }
 function drawerDependencies(skill) {
   const automatic = state.data.edges.filter(e => e.from === skill.id && e.type !== 'manual');
@@ -233,10 +251,10 @@ function openCommand() {
 let commandIndex = 0;
 function renderCommand(query) {
   const q = query.trim().replace(/^[$/]/, '').toLowerCase();
-  const candidates = filterSkills(state.data.skills, { scope: state.source, query, terms: searchTerms }).sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(Boolean(b.alias)) - Number(Boolean(a.alias)) || a.name.localeCompare(b.name, 'zh-CN')).slice(0, 7);
+  const candidates = filterSkills(state.data.skills, { scope: state.source, app: state.appFilter, query, terms: searchTerms }).sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(Boolean(b.alias)) - Number(Boolean(a.alias)) || a.name.localeCompare(b.name, 'zh-CN')).slice(0, 7);
   commandIndex = 0;
   $('#command-scope').textContent = selectedSourceLabel();
-  $('#command-results').innerHTML = candidates.length ? `<div class="command-section-label">${q ? '匹配的 Skills' : '快速打开'}</div>${candidates.map((s, i) => { const command = invocationState(s, state.data.skills).commands.at(-1); return `<button class="command-result ${i === 0 ? 'selected' : ''}" data-action="command-open" data-id="${s.id}">${skillMark(s, 'small')}<span><strong>${escape(title(s))}</strong><small>${escape(s.name)}</small></span>${command ? `<code>${escape(command)}</code>` : `<span class="command-category">${s.source === 'plugin' ? '启用未知' : s.source === 'workspace' ? '未完整安装' : s.alias ? aliasStatusLabel(s) : invocationState(s, state.data.skills).status}</span>`}${icon('arrow')}</button>`; }).join('')}` : empty('search', '没有找到匹配的 Skill', '', state.source !== 'all' ? btn('source-scope', '查看全部来源', 'layers', 'button secondary', 'data-id="all"') : '');
+  $('#command-results').innerHTML = candidates.length ? `<div class="command-section-label">${q ? '匹配的 Skills' : '快速打开'}</div>${candidates.map((s, i) => { const command = invocationState(s, state.data.skills).calls.filter(call => state.appFilter === 'all' || call.appId === state.appFilter).at(-1)?.command; return `<button class="command-result ${i === 0 ? 'selected' : ''}" data-action="command-open" data-id="${s.id}">${skillMark(s, 'small')}<span><strong>${escape(title(s))}</strong><small>${escape(s.name)} · ${escape(appSummary(s))}</small></span>${command ? `<code>${escape(command)}</code>` : `<span class="command-category">${s.source === 'plugin' ? '启用未知' : s.source === 'workspace' ? '未完整安装' : s.alias ? aliasStatusLabel(s) : invocationState(s, state.data.skills).status}</span>`}${icon('arrow')}</button>`; }).join('')}` : empty('search', '没有找到匹配的 Skill', '', state.source !== 'all' ? btn('source-scope', '查看全部来源', 'layers', 'button secondary', 'data-id="all"') : '');
 }
 
 function navigate(page) {
@@ -259,8 +277,9 @@ document.addEventListener('click', event => {
   const action = button.dataset.action, id = button.dataset.id;
   if (pageNames[action]) { navigate(action); return; }
   switch (action) {
+    case 'apps-config': showModal(`${modalHeader('管理 App')}${renderAppForm()}`, 'apps-modal'); break;
     case 'source-scope': selectSource(id); render(); if (modal.open && modal.classList.contains('command-modal')) renderCommand($('#command-input').value); break;
-    case 'personal-category': selectSource('personal'); navigate('library'); state.category = id; render(); break;
+    case 'personal-category': selectApp('all'); selectSource('personal'); navigate('library'); state.category = id; render(); break;
     case 'mobile-nav': state.mobileNav = !state.mobileNav; render(); break;
     case 'category': state.page = 'library'; state.category = id; state.filter = 'all'; state.query = ''; state.pageNumber = 1; state.mobileNav = false; history.pushState({}, '', '#library'); render(); break;
     case 'filter': state.filter = id; state.pageNumber = 1; render(); break;
@@ -278,7 +297,7 @@ document.addEventListener('click', event => {
     case 'favorite': busy(button, async () => { const favorite = !skillById(id).favorite; await updateSkill(id, { favorite }); if (drawer.open && state.drawerId === id) renderDrawer(skillById(id)); toast(favorite ? '已加入收藏' : '已取消收藏'); }); break;
     case 'copy-invocation': busy(button, async () => {
       const command = button.dataset.command;
-      if (!invocationState(skillById(id), state.data.skills).commands.includes(command)) throw new Error('调用入口需重新核对');
+      if (!invocationState(skillById(id), state.data.skills).calls.some(call => call.command === command && call.appId === button.dataset.app)) throw new Error('调用入口需重新核对');
       if (!navigator.clipboard?.writeText) throw new Error('无法复制，请手动复制调用名称');
       try { await navigator.clipboard.writeText(command); } catch { throw new Error('复制失败，请手动复制调用名称'); }
       toast('已复制 ' + command);
@@ -310,6 +329,7 @@ document.addEventListener('input', event => {
 });
 document.addEventListener('change', async event => {
   const field = event.target;
+  if (field.id === 'app-filter') { selectApp(field.value); render(); }
   if (field.id === 'sort-select') { state.sort = field.value; state.pageNumber = 1; render(); }
   if (field.id === 'graph-root') { state.graphId = field.value; state.graphZoom = 1; render(); }
   if (field.closest('#import-skill-form') && field.type === 'file') {
@@ -321,14 +341,21 @@ document.addEventListener('change', async event => {
 
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['skill-form', 'category-form', 'dependency-form', 'import-skill-form', 'import-config-form'].includes(form.id)) return;
+  if (!['skill-form', 'category-form', 'dependency-form', 'import-skill-form', 'import-config-form', 'apps-form'].includes(form.id)) return;
   event.preventDefault();
   const button = $('button[type="submit"]', form), errorNode = $('.form-error', form);
   if (button.disabled) return;
+  const buttonMarkup = button.innerHTML;
   button.disabled = true; errorNode.textContent = '';
+  if (form.id === 'apps-form') { button.innerHTML = icon('refresh') + '载入中…'; button.classList.add('busy'); form.setAttribute('aria-busy', 'true'); }
   try {
     const values = new FormData(form);
-    if (form.id === 'skill-form') {
+    if (form.id === 'apps-form') {
+      $('fieldset', form).disabled = true; $('textarea', form).disabled = true;
+      const projects = String(values.get('projects') || '').split('\n').map(path => path.trim()).filter(Boolean);
+      state.data = await api('/api/apps', { method: 'PUT', body: JSON.stringify({ apps: values.getAll('apps'), projects }) });
+      selectApp('all'); if (drawer.open) drawer.close(); if (modal.open) modal.close(); navigate('library'); toast('已载入 ' + state.data.skills.length + ' 个 Skill');
+    } else if (form.id === 'skill-form') {
       const patch = Object.fromEntries(values.entries());
       await updateSkill(form.dataset.id, patch);
       renderDrawer(skillById(form.dataset.id)); $('button[type="submit"]', drawer)?.focus(); toast('已保存');
@@ -352,10 +379,11 @@ document.addEventListener('submit', async event => {
       state.data = result.catalog; modal.close(); render(); toast(`已恢复 ${result.imported} 个 Skill 的配置${result.skipped ? `，跳过 ${result.skipped} 个未找到的 Skill` : ''}`);
     }
   } catch (error) { errorNode.textContent = error.message; }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; if (form.id === 'apps-form') { button.innerHTML = buttonMarkup; button.classList.remove('busy'); form.removeAttribute('aria-busy'); $('fieldset', form).disabled = false; $('textarea', form).disabled = false; } }
 });
 
 document.addEventListener('keydown', event => {
+  if (state.data?.appSources?.configured === false) return;
   const editable = event.target.matches('input, textarea, select, [contenteditable]');
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommand(); }
   if (event.key === '/' && !editable && !modal.open && !drawer.open) { event.preventDefault(); if (state.page !== 'library') navigate('library'); $('#library-search')?.focus(); }

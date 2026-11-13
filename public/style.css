@@ -604,3 +604,43 @@ body:has(dialog[open]) { overflow: hidden; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   .skill-card:hover { transform: none; }
 }
+
+/* App selection and a shared multi-app library. */
+.setup-shell { max-width: 780px; padding: 60px 30px; margin: 0 auto; }
+.setup-brand { margin-bottom: 48px; padding: 0; }
+.setup-caption { color: var(--muted); margin-top: 8px; font-size: 14px; }
+.apps-form { margin-top: 28px; }
+.app-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.app-option { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 18px 15px; border: 1px solid var(--line); background: white; border-radius: 11px; cursor: pointer; }
+.app-option:has(input:checked) { border-color: #7e92b8; background: #f6f8fc; }
+.app-option:focus-within { outline: 2px solid #7185c6; outline-offset: 3px; }
+.app-option-heading { display: flex; align-items: center; gap: 9px; }
+.app-option-heading strong { font-size: 13px; font-weight: 550; }
+.app-letter { display: inline-flex; align-items: center; justify-content: center; background: #e9edf4; color: #5d7090; border-radius: 6px; width: 28px; height: 28px; font-size: 10px; flex-shrink: 0; }
+.app-option input { width: 16px; height: 16px; accent-color: #536dba; margin-left: auto; flex-shrink: 0; }
+.app-option code { color: #63748d; font-size: 10px; overflow-wrap: anywhere; }
+.app-option small { color: #728095; font-size: 10px; margin-top: auto; }
+.project-sources { margin: 24px 0; color: #596a81; }
+.project-sources summary { cursor: pointer; font-size: 12px; }
+.project-sources .form-field { margin-top: 16px; }
+.apps-modal { width: min(760px, calc(100vw - 32px)); }
+.apps-modal .apps-form { margin-top: 20px; }
+.workspace-picker > span:nth-child(2) { flex: 1; min-width: 0; }
+.workspace-picker small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-tags { flex-wrap: wrap; }
+.source-mini { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invocation-app { flex-shrink: 0; color: #65758a; font-size: 10px; }
+.invocation-command code { flex: 1; }
+@media (max-width: 700px) {
+  .app-options { grid-template-columns: 1fr; }
+  .app-option { gap: 9px; padding: 14px; }
+  .setup-shell { padding: 32px 20px; }
+  .setup-brand { margin-bottom: 32px; }
+  .page-heading { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .heading-actions { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+  .heading-actions .button { width: auto; flex: 1; padding-inline: 8px; }
+  .library-toolbar .search-field { width: 100%; }
+  .toolbar-selects { width: 100%; justify-content: space-between; }
+  .invocation-command { flex-wrap: wrap; }
+}
+@media (max-width: 480px) { .skills-grid { grid-template-columns: 1fr; } }

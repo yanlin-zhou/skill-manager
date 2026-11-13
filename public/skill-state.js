@@ -1,6 +1,9 @@
 export const SOURCE_SCOPES = [
   ['personal', '个人'], ['all', '全部'], ['plugin', '插件缓存'], ['system', '系统'],
 ];
+export const APP_NAMES = { codex: 'Codex', claude: 'Claude Code', cursor: 'Cursor' };
+export const skillApps = skill => skill.appIds ? Object.keys(APP_NAMES).filter(id => skill.appIds.includes(id)) : (skill.source === 'workspace' ? [] : ['codex']);
+export const matchesApp = (skill, app = 'all') => app === 'all' || skillApps(skill).includes(app);
 
 export function normalizeScope(value) {
   return SOURCE_SCOPES.some(([id]) => id === value) ? value : 'personal';
@@ -17,15 +20,15 @@ export function saveScope(storage, value) {
   return scope;
 }
 
-export function scopeSkills(skills, scope) {
+export function scopeSkills(skills, scope, app = 'all') {
   const selected = normalizeScope(scope);
-  return skills.filter(skill => selected === 'all' || (selected === 'personal'
-    ? ['personal', 'workspace'].includes(skill.source) : skill.source === selected));
+  return skills.filter(skill => matchesApp(skill, app) && (selected === 'all' || (selected === 'personal'
+    ? ['personal', 'workspace'].includes(skill.source) : skill.source === selected)));
 }
 
-export function filterSkills(skills, { scope = 'personal', category = 'all', filter = 'all', query = '', terms = () => [] } = {}) {
+export function filterSkills(skills, { scope = 'personal', app = 'all', category = 'all', filter = 'all', query = '', terms = () => [] } = {}) {
   const q = query.trim().replace(/^[$/]/, '').toLowerCase();
-  return scopeSkills(skills, scope).filter(skill => {
+  return scopeSkills(skills, scope, app).filter(skill => {
     if (filter === 'archived' ? !skill.archived : skill.archived) return false;
     if (filter === 'favorite' && !skill.favorite) return false;
     if (filter === 'aliases' && !skill.alias && !skill.aliasTargetName) return false;
@@ -34,8 +37,8 @@ export function filterSkills(skills, { scope = 'personal', category = 'all', fil
   });
 }
 
-export function scopeCounts(skills, scope) {
-  const inScope = scopeSkills(skills, scope);
+export function scopeCounts(skills, scope, app = 'all') {
+  const inScope = scopeSkills(skills, scope, app);
   const active = inScope.filter(skill => !skill.archived);
   return { active: active.length, archived: inScope.length - active.length,
     categories: Object.fromEntries([...new Set(active.map(skill => skill.category))].map(id => [id, active.filter(skill => skill.category === id).length])),
@@ -47,20 +50,32 @@ export function aliasStatusLabel(skill) {
   return ({ ready: '入口已创建', unverified: '入口待核对', missing: '入口未找到', 'not-created': '入口未创建' })[skill.aliasEntryStatus] || '入口未创建';
 }
 export function invocationState(skill, skills) {
-  if (!skill) return { commands: [], status: 'Skill 未找到', aliasReady: false };
-  const commands = [];
-  const collisions = skills.filter(other => other.id !== skill.id && other.name === skill.name);
-  const aliasEntry = skill.aliasVerified && validName(skill.alias) && skills.find(entry => entry.source === 'personal' && entry.name === skill.alias && entry.managerTarget === skill.id);
+  if (!skill) return { commands: [], calls: [], status: 'Skill 未找到', aliasReady: false };
+  const calls = [];
+  const collisions = skills.filter(other => other.id !== skill.id && other.name === skill.name && skillApps(other).some(id => skillApps(skill).includes(id)));
+  const aliasEntry = skill.aliasVerified && validName(skill.alias) && skills.find(entry => entry.source === 'personal' && skillApps(entry).includes('codex') && entry.name === skill.alias && entry.managerTarget === skill.id);
   const sourceState = skill.source === 'plugin' ? '插件缓存 · 启用状态未知'
     : skill.source === 'workspace' ? '导入文件 · 未完整安装'
     : skill.source === 'system' ? '系统 Skill · 调用状态未确认'
     : !skill.validMetadata ? '元数据待核对'
     : !validName(skill.name) ? '名称待核对'
     : collisions.length ? '同名待核对' : '本地 Skill';
-  if (skill.source === 'personal' && skill.validMetadata && validName(skill.name) && !collisions.length) commands.push(`$${skill.name}`);
+  if (skill.source === 'personal' && validName(skill.name)) {
+    for (const appId of skillApps(skill)) {
+      const origins = skill.origins?.filter(origin => origin.appIds.includes(appId)) || [];
+      const validOrigin = (!skill.managerTarget || appId === 'codex') && (!skill.origins || origins.some(origin => !origin.synced && (appId !== 'cursor' || origin.directoryName === skill.name)));
+      const validMetadata = appId === 'claude' ? !skill.malformedHeader && skill.userInvocable !== false && !['synced', 'anthropic-skills'].includes(skill.name) : skill.validMetadata;
+      if (!validOrigin || !validMetadata || collisions.some(other => skillApps(other).includes(appId))) continue;
+      calls.push({ appId, appName: APP_NAMES[appId], command: `${appId === 'codex' ? '$' : '/'}${skill.name}` });
+    }
+  }
   // An imported Markdown file is not evidence that the complete Skill is installed.
-  if (aliasEntry && skill.source !== 'workspace' && !skills.some(entry => entry.id !== aliasEntry.id && entry.name === skill.alias)) commands.push(`$${skill.alias}`);
-  return { commands, status: sourceState, aliasReady: Boolean(aliasEntry) };
+  if (aliasEntry && skill.source !== 'workspace' && !skills.some(entry => entry.id !== aliasEntry.id && entry.name === skill.alias && skillApps(entry).includes('codex'))) calls.push({ appId: 'codex', appName: APP_NAMES.codex, command: `$${skill.alias}` });
+  const status = skill.origins?.length && skill.origins.every(origin => origin.synced) ? '同步缓存 · 调用状态未确认'
+    : skill.managerTarget && !calls.length ? 'Codex 短名入口'
+    : skill.userInvocable === false && !calls.length ? '未开放手动调用'
+    : calls.length && skill.source === 'personal' ? '本地 Skill' : sourceState;
+  return { commands: [...new Set(calls.map(call => call.command))], calls, status, aliasReady: Boolean(aliasEntry) };
 }
 
 export function localVersion(skill) {

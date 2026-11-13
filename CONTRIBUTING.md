@@ -12,7 +12,7 @@ cd skill-manager
 npm run demo
 ```
 
-The demo runs at <http://127.0.0.1:4318> using isolated sample Skills. Use `npm run dev` to work with your own local library at port 4317. Configuration is stored in `.skill-manager/` and must stay out of commits.
+The demo runs at <http://127.0.0.1:4318> using isolated sample Skills for all three Apps. It starts with the App selector; choose sources to load the shared catalog. Use `npm run dev` to work with your own local library at port 4317. Configuration is stored in `.skill-manager/` and must stay out of commits.
 
 ## Before opening a pull request
 
