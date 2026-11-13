@@ -1,0 +1,12 @@
+.skill-manager/
+work/
+.DS_Store
+AGENTS.local.md
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.playwright-cli/
+.playwright/
+coverage/

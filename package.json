@@ -1,0 +1,27 @@
+{
+  "name": "thomas-skill-manager",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first home for your Codex skills.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check server.mjs && node --check lib/catalog.mjs && node --check lib/store.mjs && node --check public/app.js && node --check public/skill-state.js && node --check public/icons.js && node --check tests/browser-fixture.mjs",
+    "demo": "node tests/browser-fixture.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "author": "yanlin-zhou",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yanlin-zhou/codex-skill-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yanlin-zhou/codex-skill-manager/issues"
+  },
+  "homepage": "https://github.com/yanlin-zhou/codex-skill-manager#readme"
+}

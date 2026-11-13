@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8f9fb" />
+    <meta name="description" content="属于你的本地 Skill 工作台。整理技能、设置短名、连接能力。" />
+    <title>Skill Manager · 你的技能工作台</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">跳转到主要内容</a>
+    <div id="app"><div class="initial-loading"><span class="loading-mark">s</span><p>正在读取你的 Skills…</p></div></div>
+    <dialog id="drawer" aria-label="Skill 详情"></dialog>
+    <dialog id="modal" aria-label="操作窗口"></dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
